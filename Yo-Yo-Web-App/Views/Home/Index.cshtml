@@ -1,0 +1,363 @@
+﻿@{
+    ViewData["Title"] = "Home Page";
+}
+
+<style type="text/css">
+    .progress-circle span {
+        line-height: 1em;
+        font-size: medium;
+    }
+
+    .triangle {
+        height: 0;
+        width: 0;
+        border-left: 40px solid #4fa402fa;
+        border-right: 40px solid transparent;
+        border-bottom: 40px solid transparent;
+        border-top: 40px solid transparent;
+        position: relative;
+        top: 30px;
+        left: 55px;
+        cursor: pointer;
+        z-index: 10000;
+    }
+
+    .table thead th, .table th, .table td {
+        border: none;
+    }
+
+    .border_right {
+        border-right: #a8a1a1b0;
+        border-right-style: solid !important;
+        border-right-width: thick;
+    }
+
+    .border_bottom {
+        border-bottom: 1px solid #dee2e6;
+    }
+
+
+    .badge {
+        cursor: pointer;
+    }
+
+    .arrow {
+        border: solid black;
+        border-width: 0 3px 3px 0;
+        display: inline-block;
+        padding: 3px;
+    }
+
+    .down {
+        transform: rotate(45deg);
+        -webkit-transform: rotate(45deg);
+        margin-left: 53px;
+        margin-top: -17px;
+        cursor: pointer;
+    }
+</style>
+
+
+<div class="row justify-content-center" style="margin-top: 5em; margin-bottom:2em;">
+    <div class="col-3" style="margin-left:2em;">
+        <div class="container-fluid">
+            <div id="prgTotalTime" class="progress-circle p0">
+                <div class="triangle" id="btnStartTest"></div>
+                <span id="spanLevel" style="line-height:6em"></span>
+                <span id="spanShuttleNo" style="line-height:9em"></span>
+                <span id="spanSpeed" style="line-height:12em"></span>
+                <div class="left-half-clipper">
+                    <div class="first50-bar"></div>
+                    <div class="value-bar"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="row justify-content-center" style="margin-bottom:2em;">
+    <div class="col-6">
+        <div class="container-fluid">
+            <table style="text-align:center;" class="table">
+                <thead>
+                    <tr class="d-flex">
+                        <th class="col-4 border_right">NEXT <br /> SHUTTLE</th>
+                        <th class="col-4 border_right">TOTAL  <br /> TIME</th>
+                        <th class="col-4">TOTAL <br /> DISTANCE</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr class="d-flex">
+                        <td class="col-4 border_right"><span id="nextShuttle"></span></td>
+                        <td class="col-4 border_right"><span id="totalTime"></span></td>
+                        <td class="col-4"><span id="totalDistance"></span></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-6">
+        <div class="container-fluid">
+            <table id="tblPlayers" class="table">
+                <tbody>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+
+<script lang="en" type="text/javascript">
+    var yoyoTestResult;
+    var i = 0;
+    var p = 0;
+    var showProgressTimerArray = [];
+    var levelShuttle = [];
+    var totalTimerArray = [];
+    var gameStopped = false;
+    var playersList = [
+        { "id": "1", "name": "Aston Eaton", "warned": "", "stopped": "" },
+        { "id": "2", "name": "Bryan Clay", "warned": "", "stopped": "" },
+        { "id": "3", "name": "Dean Karnazes", "warned": "", "stopped": "" },
+        { "id": "4", "name": "Usain Bolt", "warned": "", "stopped": "" }
+    ]
+
+    populatePlayers();
+
+    GetYoyoTest();
+
+    function populatePlayers() {
+        for (var i = 0; i < playersList.length; i++) {
+            $("#tblPlayers > tbody:last-child").append("<tr class=\"d-flex border_bottom\"><td class=\"col-1\">" + playersList[i].id + "</td><td class=\"col-7\">" + playersList[i].name + "</td><td class=\"col-2\"><span id=\"warn" + playersList[i].id + "\"  class=\"badge badge-pill badge-secondary\">Warn</span></td><td class=\"col-2\"><span id=\"stop" + playersList[i].id + "\" class=\"badge badge-pill badge-danger\">Stop</span><span id=\"score" + playersList[i].id + "\"></span><select style=\"display:none\"\ id=\"select" + playersList[i].id + "\"></select> <span style=\"display:none\"\ class=\"arrow down\"\ id=\"changescore" + playersList[i].id + "\"></span></td></tr>");
+        }
+    }
+
+    function GetYoyoTest() {
+        $.ajax({
+            type: "GET",
+            traditional: true,
+            async: false,
+            cache: false,
+            url: '/Home/GetYoYoTest',
+            success: function (result) {
+                yoyoTestResult = result;
+                levelShuttle = yoyoTestResult.map(ee => ee.speedLevel + "-" + ee.shuttleNo);
+            },
+            error: function (xhr) {
+                console.log(xhr.responseText);
+                alert("Error has occurred..");
+            }
+        });
+    }
+
+    $("#btnStartTest").click(function () {
+        if (yoyoTestResult.length > 0) {
+            $("#btnStartTest").hide();
+            myLoop(i);
+            showProgressCircle();
+            totalTimeCalculatorNew();
+        }
+    });
+
+    function myLoop() {
+        commulativeTime = yoyoTestResult[i].commulativeTime;
+        var startTime = yoyoTestResult[i].startTime;
+        var totalSeconds = parseFloat(commulativeTime.toString().substr(0, 2) - startTime.toString().substr(0, 2)) * 60 + parseFloat(commulativeTime.toString().substr(3, 5) - startTime.toString().substr(3, 5));
+        setTimeout(function () {
+            i++;
+            if (i < yoyoTestResult.length && !gameStopped) {
+                myLoop();
+                killShowProgressCircleInstances();
+                showProgressCircle();
+            }
+            else {
+                console.log('clear timeout called');
+            }
+        }, parseFloat(totalSeconds) * 1000)
+    }
+
+    function showProgressCircle() {
+        var accumulatedShuttleDistance = yoyoTestResult[i].accumulatedShuttleDistance;
+        var levelTime = yoyoTestResult[i].levelTime;
+        var commulativeTime = yoyoTestResult[i].commulativeTime;
+        var startTime = yoyoTestResult[i].startTime;
+        var speed = yoyoTestResult[i].speed;
+        var shuttleNo = yoyoTestResult[i].shuttleNo;
+        var speedLevel = yoyoTestResult[i].speedLevel;
+        var totalSeconds = parseFloat(commulativeTime.toString().substr(0, 2) - startTime.toString().substr(0, 2)) * 60 + parseFloat(commulativeTime.toString().substr(3, 5) - startTime.toString().substr(3, 5));
+        var pTotal = totalSeconds;
+        var startTime = 0.00;
+        var totalDistanceCovered = 0.00;
+        var timer = setInterval(function () {
+
+            startTime += 1;
+            if (startTime <= levelTime) {
+                totalDistanceCovered = (startTime * speed / 3.6) + (accumulatedShuttleDistance - 40);
+                $("#totalDistance").text(totalDistanceCovered.toFixed(0) + " m");
+            }
+            else {
+                $("#totalDistance").text(accumulatedShuttleDistance + " m");
+            }
+
+            pTotal -= 1;
+            if (pTotal <= 0) {
+                killShowProgressCircleInstances();
+            }
+
+            $("#nextShuttle").text(pTotal + ":00 s");
+            var classList = document.getElementById('prgTotalTime').className.split(/\s+/);
+            for (var i = 0; i < classList.length; i++) {
+                if (classList[i] !== 'progress-circle') {
+                    $("#prgTotalTime").removeClass(classList[i]);
+                }
+            }
+            var perc = 100 - (Math.abs(pTotal) * 100 / totalSeconds);
+            if (perc > 50) {
+                $("#prgTotalTime").addClass("over50 p" + Math.round(perc));
+            }
+            else {
+                $("#prgTotalTime").addClass("p" + Math.round(perc));
+            }
+            $("#prgTotalTime").css("display", "block");
+            $("#spanLevel").text("Level " + speedLevel);
+            $("#spanShuttleNo").text("Shuttle " + shuttleNo);
+            $("#spanSpeed").text(speed + " km/hr");
+        }, 1000);
+        showProgressTimerArray.push(timer);
+    }
+
+    function totalTimeCalculatorNew() {
+        var totalTimer = setInterval(function () {
+            p += 1;
+            $("#totalTime").text(getTimeInMMSS(p));
+        }, 1000);
+        totalTimerArray.push(totalTimer);
+    }
+
+    function stopTimers() {
+        for (var icounter = 0; icounter <= totalTimerArray.length - 1; icounter++) {
+            clearInterval(totalTimerArray[icounter]);
+        }
+
+        for (var icounter = 0; icounter < showProgressTimerArray.length; icounter++) {
+            clearInterval(showProgressTimerArray[icounter]);
+        }
+
+        $("#prgTotalTime").addClass("over50 p100");
+        $("#spanLevel")[0].innerText = "Game";
+        $("#spanShuttleNo")[0].innerText = "";
+        $("#spanSpeed")[0].innerText = "Over";
+    }
+
+    function getTimeInMMSS(timeInSeconds) {
+        var time = parseInt(timeInSeconds);
+        var mm = time / 60;
+        var ss = time % 60;
+        return mm.toFixed(0) + ":" + ss + " m";
+    }
+
+    function totalTimeCalculator() {
+        setInterval(function () {
+            p += 0.01;
+            $("#totalTime").text(p.toFixed(2) + " m");
+        }, 10);
+    }
+
+    function calculatorInnerFunction(p) {
+        p += 0.01;
+        $("#totalTime").text(p.toFixed(2) + " m");
+    }
+
+    function killShowProgressCircleInstances() {
+        for (var icounter = 0; icounter < showProgressTimerArray.length - 1; icounter++) {
+            clearInterval(showProgressTimerArray[icounter]);
+        }
+    }
+
+    $('[id*="warn"]').click(function () {
+        if (p > 0 && this.innerText === "Warn") {
+            debugger;
+            this.style.backgroundColor = "#c2c8cd";
+            this.style.cursor = "default";
+            this.innerText = "Warned";
+            var playerId = this.id.substr(4);
+            for (var j = 0; j < playersList.length; j++) {
+                if (playersList[j].id === playerId) {
+                    console.log("you warned player " + playersList[j].name);
+                    if (i > 0) {
+                        playersList[j].warned = yoyoTestResult[i - 1].speedLevel + "-" + yoyoTestResult[i - 1].shuttleNo;
+                    }
+                }
+            }
+        }
+    });
+
+    $('[id*="stop"]').click(function () {
+        if (p > 0) {
+            var playerId = this.id.substr(4);
+            for (var j = 0; j < playersList.length; j++) {
+                if (playersList[j].id === playerId) {
+                    if ($("#warn" + playerId)[0].innerText === "Warn") {
+                        return;
+                    }
+                    this.hidden = true;
+                    $("#warn" + playerId)[0].hidden = true;
+                    if (i > 0) {
+                        playersList[j].stopped = yoyoTestResult[i - 1].speedLevel + "-" + yoyoTestResult[i - 1].shuttleNo;
+                        $("#score" + playerId)[0].innerText = playersList[j].stopped;
+                        $("#changescore" + playerId).css("display", "block");
+                    }
+                }
+            }
+
+            var activePlayers = playersList.filter(x => x.stopped.length === 0);
+            if (activePlayers.length === 0) {
+                gameStopped = true;
+                stopTimers();
+            }
+        }
+    });
+
+    $('[id*="changescore"]').click(function () {
+        var playerId = this.id.substr(11);
+        debugger;
+        for (var j = 0; j < playersList.length; j++) {
+            if (playersList[j].id === playerId) {
+                var drpCtrl = document.getElementById('select' + playersList[j].id);
+                if (drpCtrl.options.length === 0) {
+                    levelShuttle.forEach(x => {
+                        var opt = document.createElement('option');
+                        opt.value = x;
+                        opt.id = x;
+                        opt.innerHTML = x;
+                        drpCtrl.appendChild(opt);
+                    });
+                }
+                drpCtrl.style.display = "block";
+                drpCtrl.value = document.getElementById('score' + playersList[j].id).innerText;
+                //document.getElementById('personlist').value = Person_ID;
+                document.getElementById('score' + playersList[j].id).style.display = "none";
+                document.getElementById('changescore' + playersList[j].id).style.display = "none";
+                break;
+            }
+        }
+    });
+
+    $('[id*="select"]').on('change', function () {
+        var playerId = this.id.substr(6);
+        debugger;
+        for (var j = 0; j < playersList.length; j++) {
+            if (playersList[j].id === playerId) {
+                var drpCtrl = document.getElementById('select' + playersList[j].id);
+                drpCtrl.style.display = "none";
+                document.getElementById('score' + playersList[j].id).innerText = drpCtrl.selectedOptions[0].innerText;
+                document.getElementById('score' + playersList[j].id).style.display = "block";
+                document.getElementById('changescore' + playersList[j].id).style.display = "block";
+                break;
+            }
+        }
+    });
+
+</script>
